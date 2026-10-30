@@ -1,5 +1,5 @@
 from tinygrad import Tensor, nn, Context, TinyJit
-import ale_py, gymnasium as gym, random, numpy as np
+import ale_py, gymnasium as gym, random, numpy as np, wandb
 
 # https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf
 class QNet:
@@ -16,7 +16,7 @@ class QNet:
     return s.sequential(self.layers)
 
 # stack and random idx
-N, T, n_epochs, batch_size, epsilon = 256, 5000, 20, 32, 0.05
+N, T, n_epochs, batch_size, epsilon = 256, 5000, 40, 32, 0.05
 model = QNet()
 optim = nn.optim.Adam(nn.state.get_parameters(model))
 
@@ -93,12 +93,26 @@ def train_epoch():
       train_step(batch_r_t, batch_phi_t, batch_phi_t_1, batch_a_t)
 
     if game_over:
-      print(f"{len(D_s_t)}/{T}")
       env.reset()
       frames, phi_t = [], None
 
   env.close()
 
+run = wandb.init(
+  entity="raine1-me",
+  project="DQN-breakout",
+  config = {
+    "epsilon": epsilon,
+    "batch_size" : batch_size,
+    "epochs" : n_epochs,
+    "memory_size" : N
+  }
+)
+
+from tinygrad.nn.state import get_state_dict, safe_save
 for epoch in range(n_epochs):
+  safe_save(get_state_dict(model), "qnet.safetensor")
   train_epoch()
-  print(f"epoch {epoch}, q_avg={q_avg():.4f}")
+  run.log({"valid_q_avg":q_avg()})
+
+run.finish()
